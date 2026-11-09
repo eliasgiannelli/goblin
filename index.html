@@ -41,6 +41,15 @@
   .chips{display:flex;gap:6px;overflow-x:auto;margin:8px -12px 0;padding:0 12px 2px;scrollbar-width:none}
   .chips::-webkit-scrollbar{display:none}
   .chip{flex:none;border-radius:20px;padding:6px 13px;font-size:13px;background:var(--panel);white-space:nowrap}
+  .legend{display:flex;gap:12px;align-items:center;margin-top:8px;font-size:12px;color:var(--muted);overflow-x:auto;white-space:nowrap;scrollbar-width:none}
+  .legend::-webkit-scrollbar{display:none}
+  .legend span{display:flex;align-items:center;gap:5px;flex:none}
+  .legend .lt{opacity:.75;font-size:11px}
+  .lk{font-style:normal;display:inline-grid;place-items:center;width:22px;height:22px;border-radius:6px;font-size:12px;background:var(--panel2);border:1px solid var(--line);color:var(--text);flex:none}
+  .lk.ordered{border-color:var(--ordered)} .lk.owned{border-color:var(--owned)} .lk.discarded{border-color:var(--discard)}
+  .legfull > div{display:flex;gap:10px;align-items:flex-start;margin-bottom:8px}
+  .legfull .lk{width:30px;height:30px;font-size:15px;margin-top:1px}
+  .legfull p{margin:0;font-size:14px;line-height:1.35}
   .chip.on{background:var(--text);color:var(--bg);border-color:var(--text);font-weight:600}
   .chip small{opacity:.7;margin-left:3px}
 
@@ -87,7 +96,10 @@
     padding:8px 16px calc(var(--sb) + 18px);max-height:85vh;overflow-y:auto;transform:translateY(105%);transition:transform .25s ease}
   .sheet.show{transform:none}
   @media(min-width:760px){ .sheet{max-width:520px;margin:0 auto} }
-  .grab{width:40px;height:5px;background:var(--line);border-radius:3px;margin:0 auto 12px}
+  .sheethead{position:sticky;top:-8px;z-index:3;background:var(--panel);margin:-8px -16px 0;padding:12px 16px 10px;display:flex;justify-content:center;touch-action:none;cursor:grab}
+  .grab{width:44px;height:5px;background:var(--muted);opacity:.6;border-radius:3px;margin-top:4px}
+  .sclose{position:absolute;right:12px;top:8px;width:38px;height:38px;padding:0;border-radius:50%;font-size:16px;display:grid;place-items:center}
+  .sheet.dragging{transition:none}
   .sheet h3{margin:4px 0 12px;font-size:17px}
   .sheet h4{margin:16px 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
   .opts{display:flex;flex-wrap:wrap;gap:6px}
@@ -169,6 +181,7 @@
   </div>
   <div class="search"><input type="search" id="q" placeholder="Cerca nome, testo o set" autocomplete="off"></div>
   <div class="chips" id="chips"></div>
+  <div class="legend"><span><i class="lk ordered">🛒</i>Ordinata</span><span><i class="lk owned">✓</i>Ottenuta</span><span><i class="lk discarded">✕</i>Scarta</span><span class="lt">· altro nel menu ☰</span></div>
 </header>
 
 <main id="main"><div id="msg">Caricamento…<br><br><span class="sub">Se questa scritta non cambia, apri la pagina dal browser: l'anteprima dell'app non può collegarsi a Scryfall.</span></div></main>
@@ -176,8 +189,15 @@
 <div class="backdrop" id="backdrop"></div>
 
 <div class="sheet" id="settings">
-  <div class="grab"></div>
-  <h3>Visualizzazione</h3>
+  <div class="sheethead"><div class="grab"></div><button class="sclose" aria-label="Chiudi">✕</button></div>
+  <h3>Come funziona</h3>
+  <div class="legfull">
+    <div><i class="lk ordered">🛒</i><p><b>Ordinata</b>: l'hai comprata o richiesta ma non ti è ancora arrivata.</p></div>
+    <div><i class="lk owned">✓</i><p><b>Ottenuta</b>: ce l'hai in mano. Aprendo la carta puoi indicare quante copie hai.</p></div>
+    <div><i class="lk discarded">✕</i><p><b>Scarta</b>: non ti interessa collezionarla. Sparisce dalla lista e non conta nella percentuale; la ritrovi nel filtro "Scartate" per ripristinarla.</p></div>
+    <p class="note">Toccando di nuovo lo stesso tasto togli lo stato. Tocca l'immagine per aprire la carta con le ristampe; "⋯" accanto a un set agisce su tutto il set.</p>
+  </div>
+  <h3 style="margin-top:18px">Visualizzazione</h3>
   <h4>Raggruppa per</h4><div class="opts" data-pref="group"></div>
   <h4>Ordina per</h4><div class="opts" data-pref="sort"></div>
   <h4>Direzione</h4><div class="opts" data-pref="dir"></div>
@@ -196,7 +216,7 @@
 </div>
 
 <div class="sheet" id="groupSheet">
-  <div class="grab"></div>
+  <div class="sheethead"><div class="grab"></div><button class="sclose" aria-label="Chiudi">✕</button></div>
   <h3 id="gsTitle"></h3>
   <button class="wide" data-gset="ordered">🛒 Segna tutte come ordinate</button>
   <button class="wide" data-gset="owned">✓ Segna tutte come ottenute</button>
@@ -206,7 +226,7 @@
 </div>
 
 <div class="sheet" id="seedSheet">
-  <div class="grab"></div>
+  <div class="sheethead"><div class="grab"></div><button class="sclose" aria-label="Chiudi">✕</button></div>
   <h3>Lista ordini importata</h3>
   <p class="note" id="seedSummary"></p>
   <h4>Da sistemare a mano</h4>
@@ -606,7 +626,7 @@ function closeDetail(fromPop){
 }
 $('dClose').onclick = () => closeDetail();
 $('dFlip').onclick = () => { dFace = (dFace + 1) % dCard.imgs.length; drawDetail(); };
-window.addEventListener('popstate', () => { closeDetail(true); closeSheets(); });
+window.addEventListener('popstate', () => { closeDetail(true); closeSheets(true); });
 $('detail').addEventListener('click', e => {
   const m = e.target.closest('[data-dmark]');
   if(m){
@@ -640,8 +660,43 @@ document.addEventListener('keydown', e => {
 });
 
 /* ================= Pannelli ================= */
-function openSheet(id){ $(id).classList.add('show'); $('backdrop').classList.add('show'); }
-function closeSheets(){ document.querySelectorAll('.sheet').forEach(s => s.classList.remove('show')); $('backdrop').classList.remove('show'); }
+let sheetOpen = false;
+function openSheet(id){
+  document.querySelectorAll('.sheet').forEach(s => { s.classList.toggle('show', s.id === id); s.style.transform = ''; });
+  $('backdrop').classList.add('show');
+  $(id).scrollTop = 0;
+  if(!sheetOpen){ sheetOpen = true; history.pushState({sheet:true}, ''); }   // il tasto Indietro chiude il pannello
+}
+function closeSheets(fromPop){
+  document.querySelectorAll('.sheet').forEach(s => { s.classList.remove('show'); s.style.transform = ''; });
+  $('backdrop').classList.remove('show');
+  if(sheetOpen){ sheetOpen = false; if(!fromPop && history.state && history.state.sheet) history.back(); }
+}
+document.querySelectorAll('.sclose').forEach(b => b.onclick = () => closeSheets());
+// trascina verso il basso per chiudere (dalla maniglia, o ovunque se il pannello è in cima)
+document.querySelectorAll('.sheet').forEach(sh => {
+  let y0 = null, dy = 0;
+  sh.addEventListener('touchstart', e => {
+    const onHead = !!e.target.closest('.sheethead');
+    y0 = (onHead || sh.scrollTop <= 0) ? e.touches[0].clientY : null; dy = 0;
+    sh._head = onHead;
+  }, {passive:true});
+  sh.addEventListener('touchmove', e => {
+    if(y0 === null) return;
+    dy = e.touches[0].clientY - y0;
+    if(dy > 0 && (sh._head || sh.scrollTop <= 0)){
+      e.preventDefault();
+      sh.classList.add('dragging');
+      sh.style.transform = `translateY(${dy}px)`;
+    }else if(!sh._head){ y0 = null; sh.style.transform = ''; sh.classList.remove('dragging'); }
+  }, {passive:false});
+  sh.addEventListener('touchend', () => {
+    if(y0 === null) return;
+    sh.classList.remove('dragging');
+    if(dy > 90) closeSheets(); else sh.style.transform = '';
+    y0 = null; dy = 0;
+  });
+});
 $('backdrop').onclick = closeSheets;
 $('openSettings').onclick = () => { drawOptions(); openSheet('settings'); };
 
@@ -859,7 +914,7 @@ function showSeedReport(open){
     else toast(`Lista ordini importata: ${d.marked} carte`);
   }
 }
-$('seedBtn').onclick = () => { closeSheets(); showSeedReport(false); openSheet('seedSheet'); };
+$('seedBtn').onclick = () => { showSeedReport(false); openSheet('seedSheet'); };
 $('seedSheet').addEventListener('click', e => {
   const b = e.target.closest('[data-seedsearch]'); if(!b) return;
   $('q').value = b.dataset.seedsearch; prefs.status = 'all'; savePrefs();
