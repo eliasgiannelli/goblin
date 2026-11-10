@@ -320,6 +320,7 @@ function slim(c){
     type:c.type_line || face.map(f => f.type_line).join(' // '),
     mana:c.mana_cost || face.map(f => f.mana_cost).filter(Boolean).join(' // '),
     text:c.oracle_text || face.map(f => f.oracle_text).filter(Boolean).join('\n—\n'),
+    pname:c.printed_name || face.map(f => f.printed_name).filter(Boolean).join(' // '),
     flavor:c.flavor_text || face.map(f => f.flavor_text).filter(Boolean).join('\n'),
     artist:c.artist,
     imgs: imgs.map(i => ({s:i.small, n:i.normal, l:i.large, a:i.art_crop})),
@@ -362,7 +363,7 @@ async function fetchSetIcons(){
 
 async function load(force){
   const cached = LS.get(cacheKey(), null);
-  if(cached && !force){ cards = cached.cards; showCacheInfo(cached.ts); render(); runSeed(); return; }
+  if(cached && !force){ cards = cached.cards; showCacheInfo(cached.ts); render(); runSeeds(); return; }
   try{
     msg('Connessione a Scryfall…');
     const [list] = await Promise.all([fetchAll(), fetchSetIcons()]);
@@ -371,7 +372,7 @@ async function load(force){
     // tieni in memoria solo l'ultima configurazione scaricata
     Object.keys(localStorage).filter(k => k.startsWith('goblin_cache_')).forEach(k => localStorage.removeItem(k));
     LS.set(cacheKey(), {ts, cards});
-    showCacheInfo(ts); render(); runSeed();
+    showCacheInfo(ts); render(); runSeeds();
   }catch(e){
     if(cached){ cards = cached.cards; render(); toast('Aggiornamento non riuscito, uso i dati salvati'); return; }
     const net = e.name === 'AbortError' || e instanceof TypeError;
@@ -862,7 +863,7 @@ async function printsByName(name){
 
 async function runSeed(){
   const done = LS.get(SEED_FLAG, null);
-  if(done || !cards.length) return;
+  if(done || !cards.length) return false;
   toast('Importo la lista ordini…');
   const m = marks[modeKey()], unresolved = [];
   let marked = 0;
@@ -898,16 +899,140 @@ async function runSeed(){
   }
   saveMarks(); saveQty();
   LS.set(SEED_FLAG, {ts:Date.now(), marked, unresolved});
-  render();
-  showSeedReport(true);
+  return true;
+}
+
+/* ---- seconda lista (nomi italiani): [nome italiano, nome inglese probabile, suggerimenti "set:numero", nota] ---- */
+const SEED2_FLAG = 'goblin_seed_v2';
+const SEED2 = [
+  ['Goblin Flotilla','Goblin Flotilla',['all:55'],'Alliances #055'],
+  ['Goblin Mutante','',['usg:188'],"Urza's Saga #188"],
+  ['Goblin Guastatori','',['usg:189'],"Urza's Saga #189"],
+  ['Schiavo Esploratore','',['mid:71a','mid:71b','mid:71'],'Innistrad: Caccia di Mezzanotte #71a / #71b'],
+  ['Pattuglia di Goblin Sciatori','Goblin Ski Patrol',['mmq:190'],'Mercadian Masques #190'],
+  ['Artigiani dei Goblin','Goblin Artisans',['drk:48'],'The Dark #048'],
+  ['Goblin delle Flarg','Goblins of the Flarg',['drk:51'],'The Dark #051'],
+  ['Carceriere Mogg','Mogg Jailer',['nem:68'],'Nemesis #068'],
+  ['Messaggero Pirolancia','',['mmq:203'],'Mercadian Masques #203'],
+  ['Goblin Indovino','',['mmq:179'],'Mercadian Masques #179'],
+  ['Goblin Tuttofare','',['mmq:180'],'Mercadian Masques #180'],
+  ['Custode di Kookus','Keeper of Kookus',['vis:85'],'Visions #085'],
+  ['Goblin Bully','Goblin Bully',['p02:131'],'Portal Second Age #131'],
+  ['Goblin Granatieri','Goblin Grenadiers',['lgn','som'],'Legions / Scars of Mirrodin, senza numero'],
+  ['Vandalo Goblin','Goblin Vandal',['mrd:105'],'Mirrodin #105'],
+  ['Mogg Predone','Mogg Raider',['sth','7ed'],'Stronghold / 7th Edition, senza numero'],
+  ['Squadra di Mogg','Mogg Squad',['mmq:192'],'Mercadian Masques #192'],
+  ['Mogg Bombardieri','Mogg Bombers',['nem:91'],'Nemesis #091'],
+  ['Mogg Maniaco','Mogg Maniac',['sth'],'Stronghold, senza numero'],
+  ['Assassino Mogg','Mogg Assassin',['nem:88'],'Nemesis #088'],
+  ['Hulking Goblin','Hulking Goblin',['p02:135','10e'],'Portal Second Age / 10th Edition #135'],
+  ['Goblin Incendiario','',['sth:96'],'Stronghold #096'],
+  ['Goblin Bookie','Goblin Bookie',['ugl:43'],'Unglued #043'],
+  ['Pattuglia dei Goblin','Goblin Patrol',['mmq:193'],'Mercadian Masques #193'],
+  ['Goblin Berserk','',['por:82'],'Portal #082'],
+  ['Sceriffo Goblin','',['ugl:85'],'Unglued #085'],
+  ['Cavalleggeri Goblin','',['sth:95'],'Stronghold #095'],
+  ['Mogg Strillante','Shrieking Mogg',['nem:99'],'Nemesis #099'],
+  ['Eroe Goblin','Goblin Hero',['por:103'],'Portal #103'],
+  ['Goblin Settler','Goblin Settler',['uds:131'],"Urza's Destiny #131"],
+  ['Fromboliere Goblin','',['wth:72'],'Weatherlight #072'],
+  ['Delegato Kyren','Kyren Legate',['mmq:197'],'Mercadian Masques #197'],
+  ['Mogg Servile','Mogg Toady',['nem:95'],'Nemesis #095'],
+  ['Giardiniere Goblin','',['usg:188'],"Urza's Saga #188"],
+  ['Legionario Goblin','Goblin Legionnaire',['apc:103'],'Apocalypse #103'],
+  ['Cacciatore dalla Pinna Tagliente','',['ons:119'],'Onslaught #119'],
+  ['Goblin Mago delle Braci','',['mmq:200'],'Mercadian Masques #200'],
+  ['Macchinista Goblin','Goblin Machinist',['mmq:204'],'Mercadian Masques #204'],
+  ['Piromante Goblin','Goblin Pyromancer',['mmq:206','ons'],'Mercadian Masques #206'],
+  ['Goblin Ficcanaso','',['ons:220'],'Onslaught #220'],
+  ['Scintillatore','Sparksmith',['ons'],'senza set né numero']
+];
+// due nomi "somigliano" se uno contiene l'altro o condividono quasi tutte le parole
+function nameLike(a, b){
+  const A = norm(a), B = norm(b);
+  if(!A || !B) return false;
+  if(A === B || A.includes(B) || B.includes(A)) return true;
+  const wa = A.split(/[^a-z0-9']+/).filter(w => w.length > 2), wb = B.split(/[^a-z0-9']+/).filter(w => w.length > 2);
+  if(!wa.length || !wb.length) return false;
+  const inter = wa.filter(w => wb.includes(w)).length;
+  return inter / Math.min(wa.length, wb.length) >= 0.6 && inter >= Math.min(2, wa.length, wb.length);
+}
+// dalla stampa trovata risale alla voce (illustrazione) presente tra le carte goblin
+function keyFromPrint(p){
+  if(p.illus && cards.some(c => keyOf(c) === p.illus)) return p.illus;
+  const same = [...new Set(cards.filter(c => c.oracle_id === p.oracle_id).map(keyOf))];
+  return same.length === 1 ? same[0] : null;
+}
+async function resolveItalian([it, en, hints]){
+  const good = p => p && (nameLike(p.pname, it) || nameLike(p.name, it) || (en && norm(p.name) === norm(en)));
+  // 1. set + numero, controllando che il nome corrisponda (in italiano o in inglese)
+  for(const h of hints){
+    const [hs, hn] = h.split(':');
+    if(!hn) continue;
+    for(const lang of ['it', '']){
+      const {ok, j} = await getJSON(`${API}/cards/${hs}/${encodeURIComponent(hn)}${lang ? '/' + lang : ''}`).catch(() => ({}));
+      await sleep(110);
+      if(ok && j){ const p = slim(j); if(good(p)){ const k = keyFromPrint(p); if(k) return k; } }
+    }
+  }
+  // 2. ricerca per nome italiano
+  try{
+    const {ok, j} = await getJSON(`${API}/cards/search?` + new URLSearchParams({q:`lang:it "${it}"`, unique:'prints', include_multilingual:true, include_extras:true}));
+    await sleep(110);
+    if(ok && j){
+      const found = j.data.map(slim).filter(p => nameLike(p.pname, it));
+      const sets = hints.map(h => h.split(':')[0]);
+      found.sort((a, b) => sets.includes(b.set) - sets.includes(a.set));
+      for(const p of found){ const k = keyFromPrint(p); if(k) return k; }
+    }
+  }catch(e){}
+  // 3. nome inglese tra le carte già scaricate
+  if(en){
+    const illus = [...new Set(cards.filter(c => norm(c.name) === norm(en)).map(keyOf))];
+    if(illus.length === 1) return illus[0];
+    if(illus.length > 1){
+      const prints = await printsByName(en).catch(() => []);
+      const sets = hints.map(h => h.split(':')[0]);
+      const p = prints.find(p => sets.includes(p.set) && illus.includes(p.illus));
+      if(p) return p.illus;
+    }
+  }
+  return null;
+}
+async function runSeed2(){
+  if(LS.get(SEED2_FLAG, null) || !cards.length) return false;
+  const m = marks[modeKey()], unresolved = [];
+  let marked = 0, i = 0;
+  for(const e of SEED2){
+    toast(`Importo la seconda lista ordini… ${++i}/${SEED2.length}`);
+    let key = null;
+    try{ key = await resolveItalian(e); }catch(err){}
+    if(!key){ unresolved.push({name:e[0], n:1, note:e[3], found:0, search:e[1] || (e[2][0] || '').split(':')[0]}); continue; }
+    const cur = m[key];
+    if(cur === 'owned' || cur === 'discarded') continue;
+    if(cur === 'ordered') qty[key] = (qty[key] || 1) + 1; else m[key] = 'ordered';
+    marked++;
+  }
+  saveMarks(); saveQty();
+  LS.set(SEED2_FLAG, {ts:Date.now(), marked, unresolved});
+  return true;
+}
+let seeding = false;
+async function runSeeds(){
+  if(seeding) return; seeding = true;
+  try{
+    const a = await runSeed(), b = await runSeed2();
+    if(a || b){ render(); showSeedReport(true); }
+  }finally{ seeding = false; }
 }
 
 function showSeedReport(open){
-  const d = LS.get(SEED_FLAG, null);
-  if(!d) return;
+  const d1 = LS.get(SEED_FLAG, null), d2 = LS.get(SEED2_FLAG, null);
+  if(!d1 && !d2) return;
+  const d = {marked:(d1 ? d1.marked : 0) + (d2 ? d2.marked : 0), unresolved:[...(d1 ? d1.unresolved : []), ...(d2 ? d2.unresolved : [])]};
   $('seedBtn').hidden = !d.unresolved.length;
   $('seedSummary').textContent = `${d.marked} voci della lista segnate come ordinate.` + (d.unresolved.length ? ` ${d.unresolved.length} da sistemare a mano.` : ' Tutte associate!');
-  $('seedList').innerHTML = d.unresolved.map(u => `<div class="seedrow"><div>${u.n}× <b>${esc(u.name)}</b><small>${esc(u.note)} · ${u.found ? u.found + ' illustrazioni possibili' : 'non trovata tra le carte goblin'}</small></div><button data-seedsearch="${esc(u.name)}">Cerca</button></div>`).join('');
+  $('seedList').innerHTML = d.unresolved.map(u => `<div class="seedrow"><div>${u.n}× <b>${esc(u.name)}</b><small>${esc(u.note)} · ${u.found ? u.found + ' illustrazioni possibili' : u.search !== undefined ? 'non abbinata con certezza' : 'non trovata tra le carte goblin'}</small></div><button data-seedsearch="${esc(u.search || u.name)}">Cerca</button></div>`).join('');
   if(open){
     $('toast').classList.remove('show');
     if(d.unresolved.length) openSheet('seedSheet');
